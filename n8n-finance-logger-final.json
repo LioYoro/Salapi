@@ -1,0 +1,222 @@
+{
+  "name": "Finance Logger - With Merge (Final)",
+  "nodes": [
+    {
+      "id": "telegram-trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300],
+      "webhookId": null,
+      "parameters": {},
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "id": "parse-code",
+      "name": "Parse & Categorize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const item = $input.first().json;\nconst text = item.message.text;\n\nconst parts = text.split(' ');\nif (parts.length < 2) {\n  throw new Error('Invalid format. Use: \"gastos 50 Coke\" or \"gainz 2000 Gotyme\"');\n}\n\nlet type = parts[0].toLowerCase();\nif (type === 'gasto') type = 'gastos';\nif (type !== 'gastos' && type !== 'gainz') {\n  throw new Error('Unknown type. Use gastos or gainz.');\n}\n\nconst amount = parseFloat(parts[1].replace(/,/g, ''));\nconst title = parts.slice(2).join(' ') || 'Unnamed';\n\nif (type === 'gainz') {\n  const confirmText = 'Logged: P' + amount.toLocaleString() + ' - ' + title;\n  return [{ json: { ...item, type, amount, title, confirmText } }];\n}\n\nlet category = 'Other';\nconst titleLower = title.toLowerCase();\nif (titleLower.match(/grab|taxi|uber|fare|gas|jeep|bus/)) category = 'Food & Transport';\nelse if (titleLower.match(/eat|food|resto|lunch|dinner|breakfast|coffee|coke|drinks/)) category = 'Food & Transport';\nelse if (titleLower.match(/bill|electric|water|internet|rent|phone/)) category = 'Bills & Utilities';\nelse if (titleLower.match(/shoe|shirt|pants|clothes|bag|dress/)) category = 'Shopping';\nelse if (titleLower.match(/movie|game|concert|show|entertainment/)) category = 'Entertainment';\nelse if (titleLower.match(/medicine|doctor|hospital|gym|exercise|health/)) category = 'Health & Fitness';\n\nconst confirmText = 'Logged: P' + amount.toLocaleString() + ' - ' + title + ' (' + category + ')';\nreturn [{ json: { ...item, type, amount, title, category, confirmText } }];"
+      }
+    },
+    {
+      "id": "send-telegram",
+      "name": "Send Confirmation",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [750, 300],
+      "parameters": {
+        "chatId": "={{ $json.message.chat.id }}",
+        "text": "={{ $json.confirmText }}",
+        "additionalFields": {}
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "id": "keep-parsed-data",
+      "name": "Keep Parsed Data",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1000, 300],
+      "parameters": {}
+    },
+    {
+      "id": "route-if",
+      "name": "Route Type",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1250, 300],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.type }}",
+              "operation": "equal",
+              "value2": "gastos"
+            }
+          ]
+        },
+        "combineMode": "all",
+        "options": {}
+      }
+    },
+    {
+      "id": "append-expenses",
+      "name": "Append Expenses",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1500, 200],
+      "parameters": {
+        "operation": "append",
+        "documentId": "1SR-vc1i9xCdAr4ZhwDemlsHH9VNbvAcFtdiFA--Mvws",
+        "sheetName": "Expenses",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "schema": [
+            {
+              "column": "Date",
+              "value": "={{ new Date().toISOString().slice(0,10) }}"
+            },
+            {
+              "column": "Title",
+              "value": "={{ $json.title }}"
+            },
+            {
+              "column": "Amount",
+              "value": "={{ $json.amount }}"
+            },
+            {
+              "column": "Category",
+              "value": "={{ $json.category }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "2",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "id": "append-gainz",
+      "name": "Append GAINZ",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1500, 400],
+      "parameters": {
+        "operation": "append",
+        "documentId": "1SR-vc1i9xCdAr4ZhwDemlsHH9VNbvAcFtdiFA--Mvws",
+        "sheetName": "GAINZ",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "schema": [
+            {
+              "column": "Date",
+              "value": "={{ new Date().toISOString().slice(0,10) }}"
+            },
+            {
+              "column": "Amount",
+              "value": "={{ $json.amount }}"
+            },
+            {
+              "column": "Source",
+              "value": "={{ $json.title }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "2",
+          "name": "Google Sheets"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Parse & Categorize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Categorize": {
+      "main": [
+        [
+          {
+            "node": "Send Confirmation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Keep Parsed Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Confirmation": {
+      "main": [
+        [
+        ]
+      ]
+    },
+    "Keep Parsed Data": {
+      "main": [
+        [
+          {
+            "node": "Route Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Type": {
+      "main": [
+        [
+          {
+            "node": "Append Expenses",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append GAINZ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "staticData": null,
+  "pinData": {},
+  "versionId": "with-merge-node",
+  "triggerCount": 1,
+  "active": false,
+  "tagIds": []
+}
