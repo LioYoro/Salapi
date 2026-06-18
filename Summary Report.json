@@ -1,0 +1,211 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "months",
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        -48
+      ],
+      "id": "4e1a48db-befc-4248-8adf-ac0a5b5162ab",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "sendTo": "yoroleo10@gmail.com",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.emailBody }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1008,
+        -48
+      ],
+      "id": "4e59cd2d-f714-41dc-9f3d-bd5adf934b8e",
+      "name": "Email Monthly Finance Report",
+      "webhookId": "7d88d394-7937-40a3-a6a4-6bdc605a222a",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "m1QtHHMjqyFuSewo",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst now = new Date();\nconst currentMonth = now.getMonth();\nconst currentYear = now.getFullYear();\n\nconst monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];\nconst monthName = monthNames[currentMonth];\n// Production mode - summarizes previous month:\nlet targetMonth = currentMonth - 1;\nlet targetYear = currentYear;\nif (targetMonth < 0) {\n  targetMonth = 11;\n  targetYear = currentYear - 1;\n}\n\n\nconst expenses = items\n  .filter(i => i.json.CATEGORY !== undefined && i.json.CATEGORY !== 'CATEGORY')\n  .filter(e => {\n    const d = new Date(e.json.DATE);\n    return d.getMonth() === targetMonth && d.getFullYear() === targetYear;\n  });\n\nconst gainz = items\n  .filter(i => i.json.SOURCE !== undefined && i.json.SOURCE !== 'SOURCE')\n  .filter(g => {\n    const d = new Date(g.json.DATE);\n    return d.getMonth() === targetMonth && d.getFullYear() === targetYear;\n  });\n\nconst totalExpenses = expenses.reduce((sum, e) => sum + Number(e.json.AMOUNT || 0), 0);\nconst totalGainz = gainz.reduce((sum, g) => sum + Number(g.json.AMOUNT || 0), 0);\nconst balance = totalGainz - totalExpenses;\nconst balanceSign = balance >= 0 ? '+' : '';\nconst balanceClass = balance >= 0 ? 'green' : 'red';\nconst balanceEmoji = balance >= 0 ? '✅' : '⚠️';\nconst txCount = expenses.length + gainz.length;\n\nconst categories = {};\nexpenses.forEach(e => {\n  const cat = e.json.CATEGORY || 'Other';\n  categories[cat] = (categories[cat] || 0) + Number(e.json.AMOUNT || 0);\n});\n\nconst sortedCats = Object.entries(categories).sort((a, b) => b[1] - a[1]);\nconst topCategory = sortedCats.length > 0 ? sortedCats[0] : null;\n\n// Category table rows\nconst catRows = sortedCats.length > 0\n  ? sortedCats.map(([cat, amt]) =>\n      `<tr><td style=\"padding:6px 12px;font-size:14px;border-bottom:1px solid #f0f0f0\">${cat}</td><td style=\"padding:6px 12px;font-size:14px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:600;color:#333\">P${Number(amt).toLocaleString()}</td></tr>`\n    ).join('\\n')\n  : '<tr><td colspan=\"2\" style=\"padding:6px 12px;text-align:center\">No expenses this month</td></tr>';\n\nconst topBadge = topCategory\n  ? `<div style=\"text-align:center;margin-top:14px;padding:8px 16px;background:#e8f5e9;border-radius:20px;font-size:13px;color:#1b8a3d\">🏆 Top: <strong>${topCategory[0]}</strong> (P${Number(topCategory[1]).toLocaleString()})</div>`\n  : '';\n\nconst emailBody = `<!DOCTYPE html>\n<html>\n<head>\n  <style>\n    body { margin: 0; padding: 0; background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }\n    .container { max-width: 480px; margin: 20px auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }\n    .header { background: #1a73e8; padding: 24px; text-align: center; }\n    .header h1 { margin: 0; color: white; font-size: 22px; letter-spacing: 2px; }\n    .header p { margin: 6px 0 0; color: rgba(255,255,255,0.85); font-size: 14px; }\n    .body { padding: 20px 24px; }\n    .section-title { font-size: 13px; font-weight: 700; color: #1a73e8; text-transform: uppercase; letter-spacing: 1px; margin: 20px 0 12px; }\n    .footer { text-align: center; padding: 16px 24px 20px; color: #888; font-size: 12px; border-top: 1px solid #e8eaed; }\n    .green { color: #1b8a3d; font-weight: 700; }\n    .red { color: #c5221f; font-weight: 700; }\n  </style>\n</head>\n<body>\n  <div class=\"container\">\n    <div class=\"header\">\n      <h1>SALAPI</h1>\n      <p>Monthly Summary — ${monthName} ${targetYear}</p>\n    </div>\n    <div class=\"body\">\n      <table style=\"width:100%;background:#f8f9fa;border-radius:12px;border-collapse:collapse;margin-bottom:16px\">\n        <tr>\n          <td style=\"padding:12px 16px 8px;font-size:14px;color:#5f6368\">📈 Income</td>\n          <td style=\"padding:12px 16px 8px;text-align:right\"><span class=\"green\">+P${totalGainz.toLocaleString()}</span> <span style=\"color:#5f6368;font-size:13px\">(${gainz.length})</span></td>\n        </tr>\n        <tr>\n          <td style=\"padding:8px 16px;font-size:14px;color:#5f6368\">📉 Expenses</td>\n          <td style=\"padding:8px 16px;text-align:right\"><span class=\"red\">-P${totalExpenses.toLocaleString()}</span> <span style=\"color:#5f6368;font-size:13px\">(${expenses.length})</span></td>\n        </tr>\n        <tr>\n          <td style=\"padding:12px 16px 12px;font-size:15px;font-weight:700;color:#1a73e8;border-top:2px solid #1a73e8\">💰 Balance</td>\n          <td style=\"padding:12px 16px 12px;text-align:right;font-size:16px;font-weight:700;border-top:2px solid #1a73e8\" class=\"${balanceClass}\">${balanceEmoji} ${balanceSign}P${Math.abs(balance).toLocaleString()}</td>\n        </tr>\n      </table>\n\n      <div class=\"section-title\">🏷️ Categories</div>\n      <table style=\"width:100%;background:#f8f9fa;border-radius:12px;border-collapse:collapse;margin-bottom:4px\">\n${catRows}\n      </table>\n\n      ${topBadge}\n\n      <p style=\"text-align:center;margin:14px 0 0;font-size:13px;color:#5f6368\">${txCount} total transactions</p>\n    </div>\n    <div class=\"footer\">\n      Stay on top of your finances, one text at a time.<br>\n      — Salapi Finance Bot\n    </div>\n  </div>\n</body>\n</html>`;\n\nconst subject = 'Salapi Summary - ' + monthName + ' ' + targetYear;\n\nreturn [{ json: { emailBody, subject } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        -48
+      ],
+      "id": "b3874a20-fbe2-4bdc-9335-e2553daed979",
+      "name": "Email Body Creation"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        512,
+        -48
+      ],
+      "id": "690e0c34-530c-4d66-bbf0-8e0e693e6f0e",
+      "name": "Merge Data"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1SR-vc1i9xCdAr4ZhwDemlsHH9VNbvAcFtdiFA--Mvws"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Expenses",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1SR-vc1i9xCdAr4ZhwDemlsHH9VNbvAcFtdiFA--Mvws/edit#gid=0"
+        },
+        "combineFilters": "OR",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        256,
+        -160
+      ],
+      "id": "af3da342-b5ba-4cf6-8ef1-51e7d2fd9aa3",
+      "name": "Get Rows in Expenses Sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "S5gCbGOEGcyWlH34",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1SR-vc1i9xCdAr4ZhwDemlsHH9VNbvAcFtdiFA--Mvws"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 911355320,
+          "mode": "list",
+          "cachedResultName": "GAINZ",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1SR-vc1i9xCdAr4ZhwDemlsHH9VNbvAcFtdiFA--Mvws/edit#gid=911355320"
+        },
+        "combineFilters": "OR",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        256,
+        64
+      ],
+      "id": "5b3d0968-52a3-4b91-b4be-8b70750365bd",
+      "name": "Get rows in Income Sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "S5gCbGOEGcyWlH34",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get rows in Income Sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Rows in Expenses Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Body Creation": {
+      "main": [
+        [
+          {
+            "node": "Email Monthly Finance Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Data": {
+      "main": [
+        [
+          {
+            "node": "Email Body Creation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Rows in Expenses Sheet": {
+      "main": [
+        [
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get rows in Income Sheet": {
+      "main": [
+        [
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "c28e1a13-8374-462b-a227-740be517e79a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a456bd11251ee21cc028b851f01db025af6888d7b009aa3f85d8653800558eed"
+  },
+  "id": "FH44Ch6NZNNzEl4x",
+  "tags": []
+}

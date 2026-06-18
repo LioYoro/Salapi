@@ -1,0 +1,440 @@
+{
+  "name": "Finance Logger - With Merge (Final)",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "1d82088c-16b6-4850-bbf9-61e35a95089b",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -3776,
+        2432
+      ],
+      "webhookId": "56e817f2-2ed5-4538-9032-16f389c89e0d",
+      "credentials": {
+        "telegramApi": {
+          "id": "Nq5vHFLYw5iL27vP",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst text = item.message.text;\n\nconst parts = text.split(' ');\nif (parts.length < 2) {\n  throw new Error('Invalid format. Use: \"gastos 50 Coke\" or \"gainz 2000 Gotyme\"');\n}\n\nlet type = parts[0].toLowerCase();\nif (type === 'gasto') type = 'gastos';\nif (type !== 'gastos' && type !== 'gains') {\n  throw new Error('Unknown type. Use gastos or gains.');\n}\n\nconst amount = parseFloat(parts[1].replace(/,/g, ''));\nconst title = parts.slice(2).join(' ') || 'Unnamed';\n\nif (type === 'gains') {\n  const confirmText = 'Logged: P' + amount.toLocaleString() + ' - ' + title;\n  return [{ json: { ...item, type, amount, title, confirmText } }];\n}\n\n// Categorization with more detailed categories\nlet category = 'Other';\nconst titleLower = title.toLowerCase();\n\n// Transport (solo)\nif (titleLower.match(/grab|taxi|uber|fare|gas|jeep|bus|jeepney|tricycle|mrt|lrt|train|flight|plane/)) {\n  category = 'Transport';\n}\n// Food (solo)\nelse if (titleLower.match(/eat|food|resto|lunch|dinner|breakfast|coffee|coke|drinks|burger|pizza|rice|noodles|snack|dessert|cake|pudding/)) {\n  category = 'Food';\n}\n// Clothes\nelse if (titleLower.match(/shirt|pants|dress|shoe|bershka|jeans|jacket|clothes|apparel|fashion|brand|top|blouse|skirt/)) {\n  category = 'Clothes';\n}\n// Subscriptions\nelse if (titleLower.match(/spotify|netflix|adobe|canva|subscription|premium|membership|monthly|annual|youtube/)) {\n  category = 'Subscriptions';\n}\n// Bills & Utilities\nelse if (titleLower.match(/bill|electric|water|internet|rent|phone|utility|electricity|dost/)) {\n  category = 'Bills & Utilities';\n}\n// Entertainment\nelse if (titleLower.match(/movie|game|concert|show|cinema|theatre|gaming/)) {\n  category = 'Entertainment';\n}\n// Health & Fitness\nelse if (titleLower.match(/medicine|doctor|hospital|gym|exercise|health|medicine|pharmacy|clinic/)) {\n  category = 'Health & Fitness';\n}\n\nconst confirmText = 'Logged: P' + amount.toLocaleString() + ' - ' + title + ' (' + category + ')';\nreturn [{ json: { ...item, type, amount, title, category, confirmText } }];"
+      },
+      "id": "247ef071-f29d-48b6-833a-7e6dbd21bba2",
+      "name": "Parse & Categorize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3536,
+        2432
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.message.chat.id }}",
+        "text": "={{ $json.confirmText }}",
+        "additionalFields": {}
+      },
+      "id": "32bb940f-0616-4e95-87fc-964536cd321d",
+      "name": "Send Confirmation",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [
+        -3280,
+        2432
+      ],
+      "webhookId": "8738f43f-2e3e-4149-a7ae-4db115271a11",
+      "credentials": {
+        "telegramApi": {
+          "id": "Nq5vHFLYw5iL27vP",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "6ce66941-4a47-484d-8757-88cf36ea75bc",
+      "name": "Keep Parsed Data",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -3024,
+        2432
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.type }}",
+              "value2": "gastos"
+            }
+          ]
+        }
+      },
+      "id": "e629cc38-2aad-4d30-a338-9a8064cd8121",
+      "name": "Route Type",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -2784,
+        2432
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1SR-vc1i9xCdAr4ZhwDemlsHH9VNbvAcFtdiFA--Mvws"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Expenses",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "DATE": "={{ new Date().toISOString().slice(0,10) }}",
+            "TITLE": "={{ $json.title }}",
+            "AMOUNT": "={{ $json.amount }}",
+            "CATEGORY": "={{ $json.category }}",
+            "GAINZ": "="
+          },
+          "matchingColumns": [
+            "DATE"
+          ],
+          "schema": [
+            {
+              "id": "DATE",
+              "displayName": "DATE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "TITLE",
+              "displayName": "TITLE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "AMOUNT",
+              "displayName": "AMOUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "CATEGORY",
+              "displayName": "CATEGORY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "TOTAL",
+              "displayName": "TOTAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "GAINZ",
+              "displayName": "GAINZ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "update_id",
+              "displayName": "update_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "type",
+              "displayName": "type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "amount",
+              "displayName": "amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "confirmText",
+              "displayName": "confirmText",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "locationDefine": {
+            "values": {}
+          }
+        }
+      },
+      "id": "987a6669-4122-4ed0-8375-dbc74ca88014",
+      "name": "Append Expenses",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        -2528,
+        2320
+      ],
+      "alwaysOutputData": false,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "S5gCbGOEGcyWlH34",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1SR-vc1i9xCdAr4ZhwDemlsHH9VNbvAcFtdiFA--Mvws"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "GAINZ",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "DATE": "={{ new Date().toISOString().slice(0,10) }}",
+            "AMOUNT": "={{ $json.amount }}",
+            "SOURCE": "={{ $json.title }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "DATE",
+              "displayName": "DATE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "AMOUNT",
+              "displayName": "AMOUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "SOURCE",
+              "displayName": "SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "TOTAL",
+              "displayName": "TOTAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "0",
+              "displayName": "0",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "96f8ae11-1204-4f48-b41b-ae92758bce4b",
+      "name": "Append Income",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        -2528,
+        2528
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "S5gCbGOEGcyWlH34",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Parse & Categorize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Categorize": {
+      "main": [
+        [
+          {
+            "node": "Send Confirmation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Keep Parsed Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keep Parsed Data": {
+      "main": [
+        [
+          {
+            "node": "Route Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Type": {
+      "main": [
+        [
+          {
+            "node": "Append Expenses",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append Income",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "9d8e4496-65a4-485c-9fbd-2c67e4b8a709",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a456bd11251ee21cc028b851f01db025af6888d7b009aa3f85d8653800558eed"
+  },
+  "id": "nhiEizgjgSVq5YGZ",
+  "tags": []
+}
